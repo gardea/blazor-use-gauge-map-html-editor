@@ -1,0 +1,49 @@
+﻿@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<DevExtremeResources ResourcesLoaded="@(() => ResourcesLoaded = true)" />
+
+@if (ResourcesLoaded)
+{
+    <div @ref="Diagram"></div>
+}
+
+@code {
+    bool ResourcesLoaded { get; set; }
+    bool ClientInitializationInProgress { get; set; }
+
+    ElementReference Diagram { get; set; }
+
+    IJSObjectReference ClientModule { get; set; }
+    IJSObjectReference ClientDiagram { get; set; }
+
+    [Parameter]
+    public object DataSource { get; set; }
+
+    protected sealed override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (ResourcesLoaded && ClientDiagram == null && !ClientInitializationInProgress)
+        {
+            ClientInitializationInProgress = true;
+            ClientModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/JSWidgetsRCL/DevExtremeComponents/DevExtremeDiagram.razor.js");
+            ClientDiagram = await ClientModule.InvokeAsync<IJSObjectReference>("initializeDiagram", Diagram, DataSource);
+            ClientInitializationInProgress = false;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ClientDiagram != null)
+        {
+            await ClientModule.InvokeVoidAsync("changeDiagramDataSource", ClientDiagram, DataSource);
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (ClientDiagram != null)
+            await ClientDiagram.DisposeAsync();
+        if (ClientModule != null)
+            await ClientModule.DisposeAsync();
+    }
+}
